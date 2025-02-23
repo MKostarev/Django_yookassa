@@ -43,47 +43,38 @@ def fetch_payments(limit=10, created_at_gte="2020-08-08T00:00:00.000Z", created_
 
     return  # Возвращаем все полученные платежи
 
-fetch_payments()
 
-def filter_payments(payments, filters):
+def filter_payments(payments):
     """
-    Фильтрует список платежей по заданным параметрам и оставляет только нужные поля.
-
-    :param payments: Список платежей, полученных из API.
-    :param filters: Словарь с параметрами фильтрации.
-    :return: Отфильтрованный список платежей с нужными полями.
+    Фильтрует данные о платежах, оставляя только нужные поля.
+    :param payments: Список платежей.
+    :return: Отфильтрованный список платежей.
     """
-    filtered_payments = []
-
+    filtered_data = []
     for payment in payments:
-        match = True  # Предполагаем, что платеж соответствует всем условиям
+        filtered_data.append({
+            "payment_id": payment.get("id"),
+            "status": payment.get("status"),
+            "amount_value": payment.get("amount", {}).get("value"),
+            "amount_currency": payment.get("amount", {}).get("currency"),
+            "description": payment.get("description"),
+            "payment_method_type": payment.get("payment_method", {}).get("type"),
+            "payment_method_id": payment.get("payment_method", {}).get("id"),
+            "payment_method_title": payment.get("payment_method", {}).get("title"),
+            "payment_method_account_number": payment.get("payment_method", {}).get("account_number"),
+            "cps_phone": payment.get("metadata", {}).get("cps_phone"),
+            "cust_name": payment.get("metadata", {}).get("custName"),
+            "cms_name": payment.get("metadata", {}).get("cms_name"),
+            "cps_email": payment.get("metadata", {}).get("cps_email"),
+        })
+    return filtered_data
 
-        # Проверяем каждый параметр фильтрации
-        for key, value in filters.items():
-            # Если параметр отсутствует в платеже или не совпадает, пропускаем платеж
-            if not hasattr(payment, key) or getattr(payment, key) != value:
-                match = False
-                break
+# Получаем данные от API
+payments_data = fetch_payments()
 
-        # Если все условия выполнены, добавляем платеж в отфильтрованный список
-        if match:
-            # Создаем словарь с нужными полями
-            filtered_payment = {
-                "payment_id": payment.id,
-                "status": payment.status,
-                "amount_value": payment.amount.value,
-                "amount_currency": payment.amount.currency,
-                "description": payment.description,
-                "payment_method_type": payment.payment_method.type if hasattr(payment, 'payment_method') else None,
-                "payment_method_id": payment.payment_method.id if hasattr(payment, 'payment_method') else None,
-                "payment_method_title": payment.payment_method.title if hasattr(payment, 'payment_method') else None,
-                "payment_method_account_number": payment.payment_method.account_number if hasattr(payment, 'payment_method') else None,
-                "cps_phone": payment.metadata.get('cps_phone') if hasattr(payment, 'metadata') else None,
-                "cust_name": payment.metadata.get('cust_name') if hasattr(payment, 'metadata') else None,
-                "cms_name": payment.metadata.get('cms_name') if hasattr(payment, 'metadata') else None,
-                "cps_email": payment.metadata.get('cps_email') if hasattr(payment, 'metadata') else None,
-            }
-            filtered_payments.append(filtered_payment)
+# Фильтруем данные
+filtered_payments = filter_payments(payments_data)
 
-    return filtered_payments
-
+# Выводим отфильтрованные данные
+import pprint
+pprint.pprint(filtered_payments)
