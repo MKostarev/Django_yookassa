@@ -1,20 +1,21 @@
 from yookassa import Configuration, Payment
 import config
 import var_dump as var_dump
+import pprint
 
 # Конфигурация
 Configuration.account_id = config.id_shop
 Configuration.secret_key = config.api_key
 
-def fetch_payments(limit=10, created_at_gte="2020-08-08T00:00:00.000Z", created_at_lt="2025-03-20T00:00:00.000Z"):
-    # Параметры запроса
+def fetch_payments(limit=2, created_at_gte="2020-08-08T00:00:00.000Z", created_at_lt="2025-02-20T00:00:00.000Z"):
+    # Инициализация параметров запроса
     data = {
-        "limit": limit,                                    # Ограничиваем размер выборки
-        "payment_method": "yoo_money",                 # Выбираем только оплату через кошелек
+        "limit": limit,                    # Ограничиваем размер выборки
+        "payment_method": "yoo_money",     # Выбираем только оплату через кошелек
         "created_at.gte": created_at_gte,  # Созданы начиная с 2020-08-08
-        "created_at.lt": created_at_lt    # И до 2025-03-20
+        "created_at.lt": created_at_lt     # И до 2025-03-20
     }
-
+    #Инициализация переменных
     cursor = None
     all_payments = []  # Список для хранения всех платежей
 
@@ -40,32 +41,31 @@ def fetch_payments(limit=10, created_at_gte="2020-08-08T00:00:00.000Z", created_
             print("Error: " + str(e))
             break
 
-
-    return  # Возвращаем все полученные платежи
+    return  all_payments  # Возвращаем все полученные платежи
 
 
 def filter_payments(payments):
     """
     Фильтрует данные о платежах, оставляя только нужные поля.
-    :param payments: Список платежей.
+    :param payments: Список объектов PaymentResponse.
     :return: Отфильтрованный список платежей.
     """
     filtered_data = []
     for payment in payments:
         filtered_data.append({
-            "payment_id": payment.get("id"),
-            "status": payment.get("status"),
-            "amount_value": payment.get("amount", {}).get("value"),
-            "amount_currency": payment.get("amount", {}).get("currency"),
-            "description": payment.get("description"),
-            "payment_method_type": payment.get("payment_method", {}).get("type"),
-            "payment_method_id": payment.get("payment_method", {}).get("id"),
-            "payment_method_title": payment.get("payment_method", {}).get("title"),
-            "payment_method_account_number": payment.get("payment_method", {}).get("account_number"),
-            "cps_phone": payment.get("metadata", {}).get("cps_phone"),
-            "cust_name": payment.get("metadata", {}).get("custName"),
-            "cms_name": payment.get("metadata", {}).get("cms_name"),
-            "cps_email": payment.get("metadata", {}).get("cps_email"),
+            "payment_id": payment._PaymentResponse__id,  # Используем атрибуты объекта
+            "status": payment._PaymentResponse__status,
+            "amount_value": float(payment._PaymentResponse__amount._Amount__value),
+            "amount_currency": payment._PaymentResponse__amount._Amount__currency,
+            "description": payment._PaymentResponse__description,
+            "payment_method_type": payment._PaymentResponse__payment_method._PaymentData__type,
+            "payment_method_id": payment._PaymentResponse__payment_method._ResponsePaymentData__id,
+            "payment_method_title": payment._PaymentResponse__payment_method._ResponsePaymentData__title,
+            "payment_method_account_number": payment._PaymentResponse__payment_method.account_number,
+            "cps_phone": payment._PaymentResponse__metadata.get('cps_phone'),
+            "cust_name": payment._PaymentResponse__metadata.get('custName'),
+            "cms_name": payment._PaymentResponse__metadata.get('cms_name'),
+            "cps_email": payment._PaymentResponse__metadata.get('cps_email'),
         })
     return filtered_data
 
@@ -76,5 +76,4 @@ payments_data = fetch_payments()
 filtered_payments = filter_payments(payments_data)
 
 # Выводим отфильтрованные данные
-import pprint
 pprint.pprint(filtered_payments)
