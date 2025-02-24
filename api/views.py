@@ -1,7 +1,14 @@
+from django.shortcuts import render
+
+# Create your views here.
+from django.db import transaction
 from yookassa import Configuration, Payment
-import config
 import var_dump as var_dump
 import pprint
+import config
+import os
+import django
+
 
 # Конфигурация
 Configuration.account_id = config.id_shop
@@ -69,11 +76,31 @@ def filter_payments(payments):
         })
     return filtered_data
 
+
+
+# Настройка Django-окружения
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'Django_yookassa.settings')
+django.setup()
+
+def save_payments_to_db(filtered_payments):
+    """
+    Сохраняет отфильтрованные данные о платежах в базу данных.
+    :param filtered_payments: Список словарей с данными о платежах.
+    """
+    with transaction.atomic():  # Используем транзакцию для безопасности
+        for payment_data in filtered_payments:
+            # Создаём или обновляем запись в базе данных
+            Payment.objects.update_or_create(
+                payment_id=payment_data["payment_id"],  # Уникальный идентификатор
+                defaults=payment_data  # Остальные данные
+            )
+
+
 # Получаем данные от API
 payments_data = fetch_payments()
 
 # Фильтруем данные
-filtered_payments = filter_payments(payments_data)
-
+filtered_payments = filter_payments(payments_data) # Сохраняем данные в базу
+save_payments_to_db(filtered_payments)# Сохраняем данные в базу
 # Выводим отфильтрованные данные
 pprint.pprint(filtered_payments)
