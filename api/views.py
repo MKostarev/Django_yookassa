@@ -9,6 +9,9 @@ import config
 import os
 import django
 
+# Настройка Django-окружения
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'Django_yookassa.settings')
+django.setup()
 
 # Конфигурация
 Configuration.account_id = config.id_shop
@@ -48,10 +51,12 @@ def fetch_payments(limit=2, created_at_gte="2020-08-08T00:00:00.000Z", created_a
             print("Error: " + str(e))
             break
 
-    return  all_payments  # Возвращаем все полученные платежи
+    return all_payments  # Возвращаем все полученные платежи
 
 
 def filter_payments(payments):
+    #if not filtered_payments:
+        #print("Отфильтрованные платежи пустые!")
     """
     Фильтрует данные о платежах, оставляя только нужные поля.
     :param payments: Список объектов PaymentResponse.
@@ -78,22 +83,41 @@ def filter_payments(payments):
 
 
 
-# Настройка Django-окружения
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'Django_yookassa.settings')
-django.setup()
+
 
 def save_payments_to_db(filtered_payments):
     """
     Сохраняет отфильтрованные данные о платежах в базу данных.
     :param filtered_payments: Список словарей с данными о платежах.
     """
-    with transaction.atomic():  # Используем транзакцию для безопасности
-        for payment_data in filtered_payments:
-            # Создаём или обновляем запись в базе данных
-            Payment.objects.update_or_create(
-                payment_id=payment_data["payment_id"],  # Уникальный идентификатор
-                defaults=payment_data  # Остальные данные
-            )
+    with transaction.atomic():
+        try:
+            for payment_data in filtered_payments:
+                print(f"Сохраняем: {payment_data}")  # Добавленный лог
+                # Создаём или обновляем запись в базе данных
+                payment, created = Payment.objects.update_or_create(
+                    payment_id=payment_data.get("payment_id"),
+                    defaults={
+                        "status": payment_data.get("status"),
+                        "amount_value": payment_data.get("amount_value"),
+                        "amount_currency": payment_data.get("amount_currency"),
+                        "description": payment_data.get("description"),
+                        "payment_method_type": payment_data.get("payment_method_type"),
+                        "payment_method_id": payment_data.get("payment_method_id"),
+                        "payment_method_title": payment_data.get("payment_method_title"),
+                        "payment_method_account_number": payment_data.get("payment_method_account_number"),
+                        "cps_phone": payment_data.get("cps_phone"),
+                        "cust_name": payment_data.get("cust_name"),
+                        "cms_name": payment_data.get("cms_name"),
+                        "cps_email": payment_data.get("cps_email"),
+                    }
+                )
+                if created:
+                    print(f"Создан новый платеж: {payment.payment_id}")
+                else:
+                    print(f"Обновлено: {payment.payment_id}")
+        except Exception as e:
+            print(f"Ошибка при сохранении платежа: {str(e)}")
 
 
 # Получаем данные от API
@@ -103,4 +127,4 @@ payments_data = fetch_payments()
 filtered_payments = filter_payments(payments_data) # Сохраняем данные в базу
 save_payments_to_db(filtered_payments)# Сохраняем данные в базу
 # Выводим отфильтрованные данные
-pprint.pprint(filtered_payments)
+#pprint.pprint(filtered_payments)
