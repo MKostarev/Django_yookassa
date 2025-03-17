@@ -124,7 +124,7 @@ def save_payments_to_db(filtered_payments):
 payments_data = fetch_payments()
 
 # Фильтруем данные
-filtered_payments = filter_payments(payments_data) # Сохраняем данные в базу
-save_payments_to_db(filtered_payments)# Сохраняем данные в базу
+#filtered_payments = filter_payments(payments_data) # Сохраняем данные в базу
+#save_payments_to_db(filtered_payments)# Сохраняем данные в базу
 # Выводим отфильтрованные данные
 #pprint.pprint(filtered_payments)
