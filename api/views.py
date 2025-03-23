@@ -11,7 +11,7 @@ import config
 import os
 import django
 
-from api.models import Payment_model
+#from .models import Payment_model
 
 #Настройка Django-окружения
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'Django_yookassa.settings')
@@ -21,12 +21,13 @@ django.setup()
 Configuration.account_id = config.id_shop
 Configuration.secret_key = config.api_key
 
-def fetch_payments(limit=100, created_at_gte="2025-02-15T00:00:00.000Z", created_at_lt="2025-02-20T00:00:00.000Z"):
+def fetch_payments(limit=100, created_at_gte="2025-01-8T00:00:00.000Z", created_at_lt="2025-02-10T00:00:00.000Z"):
     print("Собираем платежи")
     # Инициализация параметров запроса
     data = {
-        "limit": limit,                    # Ограничиваем размер выборки
-        #"payment_method": "yoo_money",     # Выбираем только оплату через кошелек
+        "limit": limit,
+        "paid": True,  # Добавляем фильтр для оплаченных платежей
+        "status": "succeeded",  # Добавляем фильтр по статусу (значение "paid" - оплачен)
         "created_at.gte": created_at_gte,  # Созданы начиная с 2020-08-08
         "created_at.lt": created_at_lt     # И до 2025-03-20
     }
@@ -55,7 +56,7 @@ def fetch_payments(limit=100, created_at_gte="2025-02-15T00:00:00.000Z", created
         except Exception as e:
             print("Error: " + str(e))
             break
-    print(all_payments[0])
+    #print(all_payments[0])
     return all_payments  # Возвращаем все полученные платежи
 
 
@@ -75,25 +76,20 @@ def filter_payments(payments):
             "status": payment._PaymentResponse__status,  # Статус платежа (успешно/отклонено/ожидает)
             "amount_value": float(payment._PaymentResponse__amount._Amount__value),  # Сумма платежа в числовом формате
             "amount_currency": payment._PaymentResponse__amount._Amount__currency,  # Валюта платежа (USD, RUB и т.д.)
-            "description": payment._PaymentResponse__description,  # Описание платежа
-            #"payment_method_type": payment._PaymentResponse__payment_method._PaymentData__type, # Тип платежного метода (кредитная карта, PayPal и т.д.)
-            #"payment_method_id": payment._PaymentResponse__payment_method._ResponsePaymentData__id, # Идентификатор платежного метода
-            #"payment_method_title": payment._PaymentResponse__payment_method._ResponsePaymentData__title, # Название платежного метода
-            #"payment_method_account_number": payment._PaymentResponse__payment_method.account_number, # Номер счета/карты для платежного метода
+            "seminar": payment._PaymentResponse__description,  # Описание платежа
+            "date": payment._PaymentResponse__created_at, #дата создания платежа
             "cps_phone": payment._PaymentResponse__metadata.get('cps_phone'),  # Телефон клиента
             "cust_name": payment._PaymentResponse__metadata.get('custName'),  # Имя клиента
-            "cms_name": payment._PaymentResponse__metadata.get('cms_name'),  # Название используемой CMS
             "cps_email": payment._PaymentResponse__metadata.get('cps_email'),  # Email клиента
+            "cms_name": payment._PaymentResponse__metadata.get('cms_name'),  # Название используемой CMS
+            "details_party": payment._PaymentResponse__payment_method,  # метод оплаты
         })
     print(filtered_data)
-    print(filtered_data[0])
     return filtered_data
 
 
-
-
-
 def save_payments_to_db(filtered_payments):
+    #print(f"Заходим в функцию сохранения платежей") # Добавленный лог
     """
     Сохраняет отфильтрованные данные о платежах в базу данных.
     :param filtered_payments: Список словарей с данными о платежах.
@@ -103,21 +99,20 @@ def save_payments_to_db(filtered_payments):
             for payment_data in filtered_payments:
                 print(f"Сохраняем платежи")  # Добавленный лог
                 # Создаём или обновляем запись в базе данных
+                from api.models import Payment_model
                 payment, created = Payment_model.objects.update_or_create(
                     payment_id=payment_data.get("payment_id"),
                     defaults={
                         "status": payment_data.get("status"),
                         "amount_value": payment_data.get("amount_value"),
                         "amount_currency": payment_data.get("amount_currency"),
-                        "description": payment_data.get("description"),
-                        "payment_method_type": payment_data.get("payment_method_type"),
-                        "payment_method_id": payment_data.get("payment_method_id"),
-                        "payment_method_title": payment_data.get("payment_method_title"),
-                        "payment_method_account_number": payment_data.get("payment_method_account_number"),
+                        "seminar": payment_data.get("description"),
+                        "date": payment_data.get("date"),
                         "cps_phone": payment_data.get("cps_phone"),
                         "cust_name": payment_data.get("cust_name"),
-                        "cms_name": payment_data.get("cms_name"),
                         "cps_email": payment_data.get("cps_email"),
+                        "cms_name": payment_data.get("cms_name"),
+                        "details_party": payment_data.get("details_party"),
                     }
                 )
                 if created:
@@ -128,11 +123,122 @@ def save_payments_to_db(filtered_payments):
             print(f"Ошибка при сохранении платежа: {str(e)}")
 
 
-# Получаем данные от API
-payments_data = fetch_payments()
 
-# Фильтруем данные
-filtered_payments = filter_payments(payments_data) #Фильтруем данные в базе
-save_payments_to_db(filtered_payments)# Сохраняем данные в базу
+
+from django.db import transaction
+from api.models import Student, Seminar, Seminar_studet
+
+def save_student(filtered_payments):
+    """
+    Сохраняет или обновляет данные студента.
+    :param filtered_payments: Список словарей с данными о платежах.
+    """
+    for payment_data in filtered_payments:  # Перебираем каждый элемент списка
+        student, created = Student.objects.update_or_create(
+            student_email=payment_data.get("cps_email"),  # Уникальное поле
+            defaults={
+                "student_name": payment_data.get("cust_name"),
+                "student_phone": payment_data.get("cps_phone"),
+            }
+        )
+        if created:
+            print(f"Создан новый студент: {student.student_email}")
+        else:
+            print(f"Обновлен студент: {student.student_email}")
+    return student
+
+def save_seminar(filtered_payments):
+    print('Сохраняем семинары')
+    """
+    Сохраняет или обновляет данные семинара.
+    :param filtered_payments: Список словарей с данными о платежах.
+    """
+    for payment_data in filtered_payments:  # Перебираем каждый элемент списка
+        seminar, created = Seminar.objects.update_or_create(
+            seminar_name=payment_data.get("seminar"),  # Используем seminar_name
+            defaults={
+                "description": payment_data.get("description", ""),  # Описание семинара (если есть)
+            }
+        )
+        if created:
+            print(f"Создан новый семинар: {seminar.seminar_name}")
+        else:
+            print(f"Обновлен семинар: {seminar.seminar_name}")
+    print(seminar)
+    return seminar
+
+def save_seminar_student(student, seminar):
+    """
+    Создает связь между студентом и семинаром в модели Seminar_studet.
+    :param student: Объект студента (модель Student).
+    :param seminar: Объект семинара (модель Seminar).
+    """
+    try:
+        # Проверяем, что student и seminar не None
+        if student is None:
+            raise ValueError("Объект студента не может быть None")
+        if seminar is None:
+            raise ValueError("Объект семинара не может быть None")
+
+        # Логируем данные
+        print(f"Обрабатываем студента: {student.student_name} ({student.student_email})")
+        print(f"Обрабатываем семинар: {seminar.seminar_name}")
+
+        # Создаем связь между студентом и семинаром
+        seminar_student, created = Seminar_studet.objects.get_or_create(
+            seminar=seminar,
+            student=student,
+        )
+        if created:
+            print(f"Создана связь: {student.student_name} -> {seminar.seminar_name}")
+        else:
+            print(f"Связь уже существует: {student.student_name} -> {seminar.seminar_name}")
+    except Exception as e:
+        print(f"Ошибка при создании связи: {str(e)}")
+
+
+def group_students_by_seminar(payments):
+    """
+    Группирует студентов по семинарам.
+    :param payments: Список объектов PaymentResponse.
+    :return: Список словарей, где для каждого семинара указан список студентов.
+    """
+    seminars = {}  # Словарь для хранения данных о семинарах и студентах
+
+    for payment in payments:
+        seminar_name = payment.description  # Название семинара
+        student_data = {
+            "student_name": payment.metadata.get("custName"),  # ФИО студента
+            "student_email": payment.metadata.get("cps_email"),  # Почта студента
+            "student_phone": payment.metadata.get("cps_phone"),  # Телефон студента
+        }
+
+        # Если семинар уже есть в словаре, добавляем студента
+        if seminar_name in seminars:
+            seminars[seminar_name].append(student_data)
+        else:
+            # Если семинара нет, создаем новую запись
+            seminars[seminar_name] = [student_data]
+
+    # Преобразуем словарь в список
+    result = [{"seminar": seminar, "students": students} for seminar, students in seminars.items()]
+    print(result)
+    return result
+
+
+
+
+
+
+
+payments_data = fetch_payments() # Получаем данные от API
+#filtered_payments = filter_payments(payments_data) #Фильтруем данные в базе
+#save_payments_to_db(filtered_payments)# Сохраняем данные в базу
+#student = save_student(filtered_payments)# Сохраняем данные студентов в базу
+#seminar = save_seminar(filtered_payments)# Сохраняем данные семирана в базу
+#save_seminar_student(student, seminar)
+
+group_students_by_seminar(payments_data)
+
 # Выводим отфильтрованные данные
 #pprint.pprint(filtered_payments)
