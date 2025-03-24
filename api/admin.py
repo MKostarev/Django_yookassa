@@ -1,5 +1,8 @@
 from django.contrib import admin
-from .models import Payment_model, Seminar, Student, Seminar_studet
+from django.urls import reverse
+from django.utils.html import format_html
+
+from .models import Payment_model, Seminar, Student, Seminar_studet, SeminarRegistration
 
 #admin.site.register(Payment_model)
 
@@ -35,4 +38,21 @@ class Seminar_studetAdmin(admin.ModelAdmin):
     search_fields = ('student__student_name', 'seminar__seminar_name')  # Поиск по имени студент
 
 admin.site.register(Seminar_studet, Seminar_studetAdmin)
+
+class SeminarRegistrationAdmin(admin.ModelAdmin):
+    class SeminarRegistrationAdmin(admin.ModelAdmin):
+        list_display = ('seminar_link', 'student_name', 'student_email', 'student_phone')
+        list_filter = ('seminar_name',)
+        search_fields = ('seminar_name', 'student_name', 'student_email')
+
+        def seminar_link(self, obj):
+            url = reverse('admin:app_seminaregistration_changelist') + f'?seminar_name={obj.seminar_name}'
+            return format_html('<a href="{}">{}</a>', url, obj.seminar_name)
+
+        seminar_link.short_description = "Семинар"
+        seminar_link.admin_order_field = 'seminar_name'
+
+
+admin.site.register(SeminarRegistration, SeminarRegistrationAdmin)
+
 

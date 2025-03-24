@@ -126,7 +126,8 @@ def save_payments_to_db(filtered_payments):
 
 
 from django.db import transaction
-from api.models import Student, Seminar, Seminar_studet
+from api.models import Student, Seminar, Seminar_studet, SeminarRegistration
+
 
 def save_student(filtered_payments):
     """
@@ -226,8 +227,32 @@ def group_students_by_seminar(payments):
     return result
 
 
+def save_seminar_registrations(seminar_data):
+    """
+    Сохраняет данные о регистрациях на семинары
+    :param seminar_data: Список словарей с данными о семинарах и студентах
+    """
+    registrations = []
 
+    for seminar in seminar_data:
+        seminar_name = seminar['seminar']
 
+        for student in seminar['students']:
+            # Проверяем, нет ли уже такой записи
+            if not SeminarRegistration.objects.filter(
+                    seminar_name=seminar_name,
+                    student_email=student['student_email']
+            ).exists():
+                registrations.append(
+                    SeminarRegistration(
+                        seminar_name=seminar_name,
+                        student_name=student['student_name'],
+                        student_email=student['student_email'],
+                        student_phone=student['student_phone'],
+                    )
+                )
+
+    SeminarRegistration.objects.bulk_create(registrations)
 
 
 
@@ -238,7 +263,8 @@ payments_data = fetch_payments() # Получаем данные от API
 #seminar = save_seminar(filtered_payments)# Сохраняем данные семирана в базу
 #save_seminar_student(student, seminar)
 
-group_students_by_seminar(payments_data)
+seminar_data = group_students_by_seminar(payments_data)
+save_seminar_registrations(seminar_data)
 
 # Выводим отфильтрованные данные
 #pprint.pprint(filtered_payments)
