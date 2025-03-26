@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Личный кабинет</title>
+</head>
+<body>
+
+<h1>Личный кабинет</h1>
+
+{% if student_data %}
+    <div class="student-info">
+        <h2>Информация о студенте</h2>
+        <p>Имя: {{ student_data.student_name }}</p>
+        <p>Email: {{ student_data.student_email }}</p>
+        <p>Телефон: {{ student_data.student_phone }}</p>
+    </div>
+
+    <h2>Список семинаров</h2>
+    <ul class="seminar-list">
+        {% for seminar in student_seminars %}
+            <li>
+                <strong>Название:</strong> {{ seminar.seminar.seminar_name }}<br>
+                <strong>Описание:</strong> {{ seminar.seminar.description }}
+            </li>
+        {% empty %}
+            <li>Вы пока не записаны на семинары</li>
+        {% endfor %}
+    </ul>
+{% else %}
+    <p>Данные студента не найдены</p>
+{% endif %}
+
+</body>
+</html>

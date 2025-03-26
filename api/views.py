@@ -1,3 +1,4 @@
+from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 
 # Create your views here.
@@ -7,9 +8,11 @@ from yookassa import Configuration, Payment
 
 import var_dump as var_dump
 import pprint
-import config
+#import config
 import os
 import django
+
+from api import config
 
 #from .models import Payment_model
 
@@ -130,6 +133,8 @@ from api.models import Student, Seminar, Seminar_studet, SeminarRegistration
 
 
 def save_student(filtered_payments):
+    print('Сохраняем студентов')
+    students = []
     """
     Сохраняет или обновляет данные студента.
     :param filtered_payments: Список словарей с данными о платежах.
@@ -146,16 +151,20 @@ def save_student(filtered_payments):
             print(f"Создан новый студент: {student.student_email}")
         else:
             print(f"Обновлен студент: {student.student_email}")
-    return student
+        students.append(student)  # Добавляем студента в список
+    print(students)
+    return students
+
 
 def save_seminar(filtered_payments):
     print('Сохраняем семинары')
+    seminars = []
     """
     Сохраняет или обновляет данные семинара.
     :param filtered_payments: Список словарей с данными о платежах.
     """
     for payment_data in filtered_payments:  # Перебираем каждый элемент списка
-        seminar, created = Seminar.objects.update_or_create(
+        seminar, created = Seminar.objects.get_or_create(
             seminar_name=payment_data.get("seminar"),  # Используем seminar_name
             defaults={
                 "description": payment_data.get("description", ""),  # Описание семинара (если есть)
@@ -165,37 +174,51 @@ def save_seminar(filtered_payments):
             print(f"Создан новый семинар: {seminar.seminar_name}")
         else:
             print(f"Обновлен семинар: {seminar.seminar_name}")
-    print(seminar)
-    return seminar
+        seminars.append(seminar)  # Добавляем семинар в список
+    print(seminars)
+    return seminars
 
-def save_seminar_student(student, seminar):
-    """
-    Создает связь между студентом и семинаром в модели Seminar_studet.
-    :param student: Объект студента (модель Student).
-    :param seminar: Объект семинара (модель Seminar).
-    """
+
+def save_seminar_students(students, seminars):
     try:
-        # Проверяем, что student и seminar не None
-        if student is None:
-            raise ValueError("Объект студента не может быть None")
-        if seminar is None:
-            raise ValueError("Объект семинара не может быть None")
+        # Получаем все существующие связи для оптимизации
+        existing_links = Seminar_studet.objects.filter(
+            student__in=students,
+            seminar__in=seminars
+        ).values_list('student_id', 'seminar_id')
 
-        # Логируем данные
-        print(f"Обрабатываем студента: {student.student_name} ({student.student_email})")
-        print(f"Обрабатываем семинар: {seminar.seminar_name}")
+        # Создаем словарь существующих связей для быстрой проверки
+        existing_links_dict = {(s, e) for s, e in existing_links}
 
-        # Создаем связь между студентом и семинаром
-        seminar_student, created = Seminar_studet.objects.get_or_create(
-            seminar=seminar,
-            student=student,
-        )
-        if created:
-            print(f"Создана связь: {student.student_name} -> {seminar.seminar_name}")
-        else:
-            print(f"Связь уже существует: {student.student_name} -> {seminar.seminar_name}")
+        for student in students:
+            # Предполагаем, что у каждого студента есть поле с семинарами
+            # Например, список названий семинаров, на которые он записан
+            student_seminars = student.seminars  # или как это у вас реализовано
+
+            for seminar_name in student_seminars:
+                # Находим конкретный семинар для студента
+                seminar = seminars.filter(seminar_name=seminar_name).first()
+
+                if seminar:
+                    # Проверяем, существует ли уже такая связь
+                    if (student.id, seminar.id) not in existing_links_dict:
+                        # Создаем связь только если её нет
+                        seminar_student, created = Seminar_studet.objects.get_or_create(
+                            seminar=seminar,
+                            student=student
+                        )
+                        if created:
+                            print(f"Создана связь: {student.student_name} -> {seminar.seminar_name}")
+                        else:
+                            print(f"Связь уже существует: {student.student_name} -> {seminar.seminar_name}")
+                    else:
+                        print(f"Связь уже существует: {student.student_name} -> {seminar.seminar_name}")
     except Exception as e:
         print(f"Ошибка при создании связи: {str(e)}")
+
+
+# Теперь вызываем функцию правильно
+
 
 
 def group_students_by_seminar(payments):
@@ -227,44 +250,138 @@ def group_students_by_seminar(payments):
     return result
 
 
-def save_seminar_registrations(seminar_data):
-    """
-    Сохраняет данные о регистрациях на семинары
-    :param seminar_data: Список словарей с данными о семинарах и студентах
-    """
-    registrations = []
+def save_seminars_data(data):
+    try:
+        # Создаем список для хранения созданных студентов
+        students = []
+        # Создаем список для хранения созданных семинаров
+        seminars = []
 
-    for seminar in seminar_data:
-        seminar_name = seminar['seminar']
+        # Проходим по каждому семинару из входных данных
+        for seminar_item in data:
+            # Получаем название семинара
+            seminar_name = seminar_item.get('seminar')
 
-        for student in seminar['students']:
-            # Проверяем, нет ли уже такой записи
-            if not SeminarRegistration.objects.filter(
-                    seminar_name=seminar_name,
-                    student_email=student['student_email']
-            ).exists():
-                registrations.append(
-                    SeminarRegistration(
-                        seminar_name=seminar_name,
-                        student_name=student['student_name'],
-                        student_email=student['student_email'],
-                        student_phone=student['student_phone'],
-                    )
+            # Проверяем, существует ли семинар
+            seminar, created = Seminar.objects.get_or_create(
+                seminar_name=seminar_name,
+                defaults={
+                    "description": seminar_item.get("description", "")
+                }
+            )
+
+            if created:
+                print(f"Создан новый семинар: {seminar.seminar_name}")
+            else:
+                print(f"Обновлен семинар: {seminar.seminar_name}")
+
+            seminars.append(seminar)
+
+            # Проходим по каждому студенту в семинаре
+            for student_data in seminar_item.get('students', []):
+                # Получаем данные студента
+                student_email = student_data.get('student_email')
+
+                # Проверяем, существует ли студент
+                student, created = Student.objects.update_or_create(
+                    student_email=student_email,
+                    defaults={
+                        "student_name": student_data.get('student_name'),
+                        "student_phone": student_data.get('student_phone')
+                    }
                 )
 
-    SeminarRegistration.objects.bulk_create(registrations)
+                if created:
+                    print(f"Создан новый студент: {student.student_email}")
+                else:
+                    print(f"Обновлен студент: {student.student_email}")
+
+                students.append(student)
+
+                # Проверяем, существует ли уже такая связь
+                if not Seminar_studet.objects.filter(seminar=seminar, student=student).exists():
+                    # Создаем связь между семинаром и студентом
+                    seminar_student, created = Seminar_studet.objects.get_or_create(
+                        seminar=seminar,
+                        student=student
+                    )
+
+                    if created:
+                        print(f"Создана связь: {student.student_name} -> {seminar.seminar_name}")
+                    else:
+                        print(f"Связь уже существует: {student.student_name} -> {seminar.seminar_name}")
+
+        return {
+            'students': students,
+            'seminars': seminars
+        }
+
+    except Exception as e:
+        print(f"Произошла ошибка: {str(e)}")
+        return None
 
 
+#
+#
+#def save_seminar_registrations(seminar_data):
+#    """
+#    Сохраняет данные о регистрациях на семинары
+#    :param seminar_data: Список словарей с данными о семинарах и студентах
+#    """
+#    registrations = []
+#
+#    for seminar in seminar_data:
+#        seminar_name = seminar['seminar']
+#
+#        for student in seminar['students']:
+#            # Проверяем, нет ли уже такой записи
+#            if not SeminarRegistration.objects.filter(
+#                    seminar_name=seminar_name,
+#                    student_email=student['student_email']
+#            ).exists():
+#                registrations.append(
+#                    SeminarRegistration(
+#                        seminar_name=seminar_name,
+#                        student_name=student['student_name'],
+#                        student_email=student['student_email'],
+#                        student_phone=student['student_phone'],
+#                    )
+#                )
+#
+#    SeminarRegistration.objects.bulk_create(registrations)
+
+@login_required
+def user_profile(request):
+    try:
+        # Получаем данные студента по email пользователя
+        student_data = Student.objects.get(student_email=request.user.email)
+    except Student.DoesNotExist:
+        student_data = None
+
+    # Получаем семинары для студента
+    student_seminars = Seminar_studet.objects.filter(student=student_data)
+
+    context = {
+        'student_data': student_data,
+        'student_seminars': student_seminars
+    }
+
+    return render(request, 'profile.html', context)
 
 payments_data = fetch_payments() # Получаем данные от API
-#filtered_payments = filter_payments(payments_data) #Фильтруем данные в базе
-#save_payments_to_db(filtered_payments)# Сохраняем данные в базу
-#student = save_student(filtered_payments)# Сохраняем данные студентов в базу
+filtered_payments = filter_payments(payments_data) #Фильтруем данные в базе
+save_payments_to_db(filtered_payments)# Сохраняем данные в базу
+student = save_student(filtered_payments)# Сохраняем данные студентов в базу
 #seminar = save_seminar(filtered_payments)# Сохраняем данные семирана в базу
-#save_seminar_student(student, seminar)
+#save_seminar_students(student, seminar)
 
-seminar_data = group_students_by_seminar(payments_data)
-save_seminar_registrations(seminar_data)
+#students = save_students(filtered_payments)
+#seminars = save_seminars(filtered_payments)
+#save_seminar_students(students, seminars)
+
+data = group_students_by_seminar(payments_data)
+save_seminars_data(data)
+#save_seminar_registrations(seminar_data)
 
 # Выводим отфильтрованные данные
 #pprint.pprint(filtered_payments)

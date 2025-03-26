@@ -16,10 +16,14 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
+
+from api import views
+
 #from .views import payment_webhook
 
 
 urlpatterns = [
 #    path("webhook/", payment_webhook, name="payment_webhook"),
     path('admin/', admin.site.urls),
+    path('profile/', views.user_profile, name='profile'),
 ]
