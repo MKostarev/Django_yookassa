@@ -60,16 +60,10 @@ class Seminar_studet(models.Model):
 
 
 class SeminarRegistration(models.Model):
-    seminar_name = models.CharField(max_length=500, verbose_name="Название семинара", null=True, blank=True)
-    student_name = models.CharField(max_length=255, verbose_name="ФИО студента", null=True, blank=True)
-    student_email = models.EmailField(verbose_name="Email студента", null=True, blank=True)
-    student_phone = models.CharField(max_length=20, verbose_name="Телефон студента", null=True, blank=True)
-    registration_date = models.DateTimeField(auto_now_add=True, verbose_name="Дата регистрации", null=True, blank=True)
-
-    class Meta:
-        verbose_name = "Регистрация на семинар"
-        verbose_name_plural = "Регистрации на семинары"
-        ordering = ['-registration_date']
+    seminar_name = models.CharField(max_length=255)
+    student_name = models.CharField(max_length=255, blank=True, null=True)  # сохраняем JSON с данными студентов
+    student_phone = models.CharField(max_length=20, blank=True, null=True)  # Телефон (необязательное)
+    student_email = models.EmailField(blank=True, null=True)  # Email (необязательное)
 
     def __str__(self):
-        return f"{self.student_name} - {self.seminar_name}"
+        return f"{self.student_name} на {self.seminar_name}"

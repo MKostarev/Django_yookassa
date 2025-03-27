@@ -8,28 +8,20 @@
 
 <h1>Личный кабинет</h1>
 
-{% if student_data %}
+{% for seminar in seminar_student_data %}
     <div class="student-info">
-        <h2>Информация о студенте</h2>
-        <p>Имя: {{ student_data.student_name }}</p>
-        <p>Email: {{ student_data.student_email }}</p>
-        <p>Телефон: {{ student_data.student_phone }}</p>
+        <h2>Семинар: {{ seminar.seminar_name}}</h2>
+                <h3>Участники ({{ seminar.seminar_studet_set.count }}):</h3>
+                    <div class="students-list">
+                    {% for relation in seminar.seminar_studet_set.all %}
+                    <div class="student">
+                        <strong>{{ relation.student.student_name }}</strong> Телефон: {{ relation.student.student_phone }}
+                        Email: {{ relation.student.student_email }}
+                    </div>
+                {% endfor %}
     </div>
+{% endfor %}
 
-    <h2>Список семинаров</h2>
-    <ul class="seminar-list">
-        {% for seminar in student_seminars %}
-            <li>
-                <strong>Название:</strong> {{ seminar.seminar.seminar_name }}<br>
-                <strong>Описание:</strong> {{ seminar.seminar.description }}
-            </li>
-        {% empty %}
-            <li>Вы пока не записаны на семинары</li>
-        {% endfor %}
-    </ul>
-{% else %}
-    <p>Данные студента не найдены</p>
-{% endif %}
 
 </body>
 </html>

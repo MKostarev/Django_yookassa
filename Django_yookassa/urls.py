@@ -18,6 +18,7 @@ from django.contrib import admin
 from django.urls import path
 
 from api import views
+from api.views import IndexrealtyView
 
 #from .views import payment_webhook
 
@@ -25,5 +26,5 @@ from api import views
 urlpatterns = [
 #    path("webhook/", payment_webhook, name="payment_webhook"),
     path('admin/', admin.site.urls),
-    path('profile/', views.user_profile, name='profile'),
+    path('profile/', IndexrealtyView.as_view(), name='profile'),
 ]
